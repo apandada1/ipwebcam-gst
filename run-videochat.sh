@@ -160,7 +160,7 @@ AUDIO_CODEC=wav
 
 # Port on which IP Webcam is listening
 # Defaults to 8080, ovverrided by command line options.
-PORT=8080
+PORT=8082
 
 # If your "adb" is not in your $PATH, specify it on command line.
 if can_run adb; then ADB=$(which adb); fi
@@ -275,6 +275,7 @@ if lsmod | grep -w v4l2loopback >/dev/null 2>/dev/null; then
 elif [ $CAPTURE_STREAM = v -o $CAPTURE_STREAM = av ]; then
     if can_run sudo; then
         echo Loading module
+        sudo modprobe v4l2loopback exclusive_caps=1
         sudo modprobe v4l2loopback $V4L2_OPTS #-q > /dev/null 2>&1
         sleep .05
     else
@@ -321,9 +322,12 @@ if [ -z $IP ]; then
     fi
     if ss -ln src :$PORT | grep -q :$PORT; then
         error "Your port $PORT seems to be in use: try using Wi-Fi.\nIf you would like to use USB forwarding, please free it up and try again."
+        adb forward --remove tcp:$PORT
+
     fi
     "$ADB" $ADB_FLAGS forward tcp:$PORT tcp:$PORT
-    IP=127.0.0.1
+    #IP=127.0.0.1
+    IP=192.168.42.129
     MODE=adb
 else
     MODE=wifi
@@ -453,15 +457,19 @@ info "${MESSAGE}You can now open your videochat app."
 echo "Press enter to end stream"
 read
 
+
 kill $GSTLAUNCH_PID > /dev/null 2>&1 || echo ""
 if [ $CAPTURE_STREAM = a -o $CAPTURE_STREAM = av ]; then
     pactl set-default-source ${DEFAULT_SOURCE}
     pactl unload-module ${ECANCEL_ID}
     pactl unload-module ${SINK_ID}
+    sudo modprobe -rf v4l2loopback
 fi
 
 # Remove the port forwarding, to avoid issues on the next run
 if [ $MODE = adb ]; then "$ADB" $ADB_FLAGS forward --remove tcp:$PORT; fi
+sudo modprobe -rf v4l2loopback
+
 
 echo "Disconnected from IP Webcam. Have a nice day!"
 # idea: capture ctrl-c signal and set default source back
